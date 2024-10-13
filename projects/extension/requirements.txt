@@ -1,4 +1,4 @@
-openai==1.51.0
+openai==1.51.2
 tiktoken==0.8.0
 ollama==0.2.1
 anthropic==0.29.0
