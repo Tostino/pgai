@@ -49,4 +49,6 @@ def test_contents() -> None:
     init()
     actual = host_dir().joinpath("output.actual").read_text()
     expected = host_dir().joinpath("output.expected").read_text()
+    if actual != expected:
+        print(actual)
     assert actual == expected

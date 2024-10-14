@@ -59,6 +59,8 @@ def run_test(kind: str) -> None:
     psql_file("postgres", "privs", f"{kind}.sql")
     expected = read_file(f"{kind}.expected")
     actual = read_file(f"{kind}.actual")
+    if actual != expected:
+        print(actual)
     assert actual == expected
 
 
