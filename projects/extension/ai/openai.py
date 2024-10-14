@@ -30,6 +30,7 @@ def make_client(
         base_url = get_openai_base_url(plpy)
     return openai.Client(api_key=api_key, base_url=base_url)
 
+
 def process_json_input(input_value):
     """Process JSON input, returning None if input is NULL."""
     return json.loads(input_value) if input_value is not None else None

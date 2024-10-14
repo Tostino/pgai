@@ -182,8 +182,8 @@ create or replace function ai.openai_list_models(
     _base_url text default null,
     _extra_headers jsonb default null,
     _extra_query jsonb default null,
-    _extra_body jsonb default null)
-returns jsonb
+    _extra_body jsonb default null
+) returns jsonb
 as $python$
     if "ai.version" not in GD:
         r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
@@ -635,8 +635,8 @@ as $python$
     moderation = client.moderations.create(**kwargs)
     return moderation.model_dump_json()
 $python$
-    language plpython3u immutable parallel safe security invoker
-                        set search_path to pg_catalog, pg_temp
+language plpython3u immutable parallel safe security invoker
+set search_path to pg_catalog, pg_temp
 ;
 
 
