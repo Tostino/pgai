@@ -177,12 +177,13 @@ set search_path to pg_catalog, pg_temp
 -- openai_list_models
 -- list models supported on the openai platform
 -- https://platform.openai.com/docs/api-reference/models/list
-create or replace function ai.openai_list_models(_api_key text default null, _base_url text default null)
-returns table
-( id text
-, created timestamptz
-, owned_by text
-)
+create or replace function ai.openai_list_models(
+    _api_key text default null,
+    _base_url text default null,
+    _extra_headers jsonb default null,
+    _extra_query jsonb default null,
+    _extra_body jsonb default null)
+returns jsonb
 as $python$
     if "ai.version" not in GD:
         r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
@@ -198,8 +199,20 @@ as $python$
         if GD["ai.version"] != "0.4.0":
             plpy.fatal("the pgai extension version has changed. start a new session")
     import ai.openai
-    for tup in ai.openai.list_models(plpy, _api_key, _base_url):
-        yield tup
+    import json
+    client = ai.openai.make_client(plpy, _api_key, _base_url)
+    # Initialize kwargs
+    kwargs = {}
+    # Add extra parameters if provided
+    if _extra_headers is not None:
+        kwargs['extra_headers'] = json.loads(_extra_headers)
+    if _extra_query is not None:
+        kwargs['extra_query'] = json.loads(_extra_query)
+    if _extra_body is not None:
+        kwargs['extra_body'] = json.loads(_extra_body)
+
+    request = client.models.list(**kwargs)
+    return request.model_dump_json()
 $python$
 language plpython3u volatile parallel safe security invoker
 set search_path to pg_catalog, pg_temp
@@ -210,13 +223,17 @@ set search_path to pg_catalog, pg_temp
 -- generate an embedding from a text value
 -- https://platform.openai.com/docs/api-reference/embeddings/create
 create or replace function ai.openai_embed
-( _model text
-, _input text
+( _input text
+, _model text
 , _api_key text default null
 , _base_url text default null
+, _encoding_format text default null
 , _dimensions int default null
 , _user text default null
-) returns @extschema:vector@.vector
+, _extra_headers jsonb default null
+, _extra_query jsonb default null
+, _extra_body jsonb default null
+) returns jsonb
 as $python$
     if "ai.version" not in GD:
         r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
@@ -232,8 +249,32 @@ as $python$
         if GD["ai.version"] != "0.4.0":
             plpy.fatal("the pgai extension version has changed. start a new session")
     import ai.openai
-    for tup in ai.openai.embed(plpy, _model, _input, api_key=_api_key, base_url=_base_url, dimensions=_dimensions, user=_user):
-        return tup[1]
+    import json
+    client = ai.openai.make_client(plpy, _api_key, _base_url)
+    # Prepare kwargs for the API call
+    kwargs = {
+        "input": [_input],
+        "model": _model,
+    }
+
+    if _encoding_format is not None:
+        kwargs["encoding_format"] = _encoding_format
+    if _dimensions is not None:
+        kwargs["dimensions"] = _dimensions
+    if _user is not None:
+        kwargs["user"] = _user
+
+    # Add extra parameters if provided
+    if _extra_headers is not None:
+        kwargs['extra_headers'] = json.loads(_extra_headers)
+    if _extra_query is not None:
+        kwargs['extra_query'] = json.loads(_extra_query)
+    if _extra_body is not None:
+        kwargs['extra_body'] = json.loads(_extra_body)
+
+    # Make the API call
+    response = client.embeddings.create(**kwargs)
+    return response.model_dump_json()
 $python$
 language plpython3u immutable parallel safe security invoker
 set search_path to pg_catalog, pg_temp
@@ -244,16 +285,17 @@ set search_path to pg_catalog, pg_temp
 -- generate embeddings from an array of text values
 -- https://platform.openai.com/docs/api-reference/embeddings/create
 create or replace function ai.openai_embed
-( _model text
-, _input text[]
+( _input text[]
+, _model text
 , _api_key text default null
 , _base_url text default null
+, _encoding_format text default null
 , _dimensions int default null
 , _user text default null
-) returns table
-( "index" int
-, embedding @extschema:vector@.vector
-)
+, _extra_headers jsonb default null
+, _extra_query jsonb default null
+, _extra_body jsonb default null
+) returns jsonb
 as $python$
     if "ai.version" not in GD:
         r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
@@ -269,8 +311,32 @@ as $python$
         if GD["ai.version"] != "0.4.0":
             plpy.fatal("the pgai extension version has changed. start a new session")
     import ai.openai
-    for tup in ai.openai.embed(plpy, _model, _input, api_key=_api_key, base_url=_base_url, dimensions=_dimensions, user=_user):
-        yield tup
+    import json
+    client = ai.openai.make_client(plpy, _api_key, _base_url)
+    # Prepare kwargs for the API call
+    kwargs = {
+        "input": _input,
+        "model": _model,
+    }
+
+    if _encoding_format is not None:
+        kwargs["encoding_format"] = _encoding_format
+    if _dimensions is not None:
+        kwargs["dimensions"] = _dimensions
+    if _user is not None:
+        kwargs["user"] = _user
+
+    # Add extra parameters if provided
+    if _extra_headers is not None:
+        kwargs['extra_headers'] = json.loads(_extra_headers)
+    if _extra_query is not None:
+        kwargs['extra_query'] = json.loads(_extra_query)
+    if _extra_body is not None:
+        kwargs['extra_body'] = json.loads(_extra_body)
+
+    # Make the API call
+    response = client.embeddings.create(**kwargs)
+    return response.model_dump_json()
 $python$
 language plpython3u immutable parallel safe security invoker
 set search_path to pg_catalog, pg_temp
@@ -285,9 +351,13 @@ create or replace function ai.openai_embed
 , _input int[]
 , _api_key text default null
 , _base_url text default null
+, _encoding_format text default null
 , _dimensions int default null
 , _user text default null
-) returns @extschema:vector@.vector
+, _extra_headers jsonb default null
+, _extra_query jsonb default null
+, _extra_body jsonb default null
+) returns jsonb
 as $python$
     if "ai.version" not in GD:
         r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
@@ -303,8 +373,32 @@ as $python$
         if GD["ai.version"] != "0.4.0":
             plpy.fatal("the pgai extension version has changed. start a new session")
     import ai.openai
-    for tup in ai.openai.embed(plpy, _model, _input, api_key=_api_key, base_url=_base_url, dimensions=_dimensions, user=_user):
-        return tup[1]
+    import json
+    client = ai.openai.make_client(plpy, _api_key, _base_url)
+    # Prepare kwargs for the API call
+    kwargs = {
+        "input": [_input],
+        "model": _model,
+    }
+
+    if _encoding_format is not None:
+        kwargs["encoding_format"] = _encoding_format
+    if _dimensions is not None:
+        kwargs["dimensions"] = _dimensions
+    if _user is not None:
+        kwargs["user"] = _user
+
+    # Add extra parameters if provided
+    if _extra_headers is not None:
+        kwargs['extra_headers'] = json.loads(_extra_headers)
+    if _extra_query is not None:
+        kwargs['extra_query'] = json.loads(_extra_query)
+    if _extra_body is not None:
+        kwargs['extra_body'] = json.loads(_extra_body)
+
+    # Make the API call
+    response = client.embeddings.create(**kwargs)
+    return response.model_dump_json()
 $python$
 language plpython3u immutable parallel safe security invoker
 set search_path to pg_catalog, pg_temp
@@ -315,8 +409,8 @@ set search_path to pg_catalog, pg_temp
 -- text generation / chat completion
 -- https://platform.openai.com/docs/api-reference/chat/create
 create or replace function ai.openai_chat_complete
-( _model text
-, _messages jsonb
+( _messages jsonb
+, _model text
 , _api_key text default null
 , _base_url text default null
 , _frequency_penalty float8 default null
@@ -324,16 +418,25 @@ create or replace function ai.openai_chat_complete
 , _logprobs boolean default null
 , _top_logprobs int default null
 , _max_tokens int default null
+, _max_completion_tokens int default null
 , _n int default null
 , _presence_penalty float8 default null
 , _response_format jsonb default null
 , _seed int default null
 , _stop text default null
+, _stream boolean default null
 , _temperature float8 default null
 , _top_p float8 default null
 , _tools jsonb default null
 , _tool_choice jsonb default null
 , _user text default null
+, _metadata jsonb default null
+, _service_tier text default null
+, _store boolean default null
+, _parallel_tool_calls boolean default null
+, _extra_headers jsonb default null
+, _extra_query jsonb default null
+, _extra_body jsonb default null
 ) returns jsonb
 as $python$
     if "ai.version" not in GD:
@@ -353,47 +456,57 @@ as $python$
     client = ai.openai.make_client(plpy, _api_key, _base_url)
     import json
 
-    _messages_1 = json.loads(_messages)
-    if not isinstance(_messages_1, list):
+    # Process JSON inputs
+    messages = json.loads(_messages)
+    if not isinstance(messages, list):
         plpy.error("_messages is not an array")
 
-    _logit_bias_1 = None
-    if _logit_bias is not None:
-      _logit_bias_1 = json.loads(_logit_bias)
+    # Handle _stream parameter since we cannot support it
+    stream = False if _stream is None else _stream
+    if _stream:
+        plpy.error("Streaming is not supported in this implementation")
 
-    _response_format_1 = None
-    if _response_format is not None:
-      _response_format_1 = json.loads(_response_format)
+    # Prepare kwargs for the API call
+    kwargs = {
+        "model": _model,
+        "messages": messages,
+    }
 
-    _tools_1 = None
-    if _tools is not None:
-      _tools_1 = json.loads(_tools)
+    # Add optional parameters only if they are not None
+    optional_params = {
+        "frequency_penalty": _frequency_penalty,
+        "logit_bias": ai.openai.process_json_input(_logit_bias),
+        "logprobs": _logprobs,
+        "top_logprobs": _top_logprobs,
+        "max_completion_tokens": _max_completion_tokens or _max_tokens,
+        "n": _n,
+        "presence_penalty": _presence_penalty,
+        "response_format": ai.openai.process_json_input(_response_format),
+        "seed": _seed,
+        "stop": _stop,
+        "temperature": _temperature,
+        "top_p": _top_p,
+        "tools": ai.openai.process_json_input(_tools),
+        "tool_choice": ai.openai.process_json_input(_tool_choice),
+        "user": _user,
+        "metadata": ai.openai.process_json_input(_metadata),
+        "service_tier": _service_tier,
+        "store": _store,
+        "parallel_tool_calls": _parallel_tool_calls,
+    }
 
-    _tool_choice_1 = None
-    if _tool_choice is not None:
-      _tool_choice_1 = json.loads(_tool_choice)
+    kwargs.update({k: v for k, v in optional_params.items() if v is not None})
 
-    response = client.chat.completions.create(
-      model=_model
-    , messages=_messages_1
-    , frequency_penalty=_frequency_penalty
-    , logit_bias=_logit_bias_1
-    , logprobs=_logprobs
-    , top_logprobs=_top_logprobs
-    , max_tokens=_max_tokens
-    , n=_n
-    , presence_penalty=_presence_penalty
-    , response_format=_response_format_1
-    , seed=_seed
-    , stop=_stop
-    , stream=False
-    , temperature=_temperature
-    , top_p=_top_p
-    , tools=_tools_1
-    , tool_choice=_tool_choice_1
-    , user=_user
-    )
+    # Add extra parameters if provided
+    if _extra_headers is not None:
+        kwargs['extra_headers'] = json.loads(_extra_headers)
+    if _extra_query is not None:
+        kwargs['extra_query'] = json.loads(_extra_query)
+    if _extra_body is not None:
+        kwargs['extra_body'] = json.loads(_extra_body)
 
+    # Make the API call
+    response = client.chat.completions.create(**kwargs)
     return response.model_dump_json()
 $python$
 language plpython3u volatile parallel safe security invoker
@@ -431,10 +544,13 @@ set search_path to pg_catalog, pg_temp
 -- classify text as potentially harmful or not
 -- https://platform.openai.com/docs/api-reference/moderations/create
 create or replace function ai.openai_moderate
-( _model text
-, _input text
-, _api_key text default null
-, _base_url text default null
+(   _input text,
+    _api_key text default null,
+    _base_url text default null,
+    _model text default null,
+    _extra_headers jsonb default null,
+    _extra_query jsonb default null,
+    _extra_body jsonb default null
 ) returns jsonb
 as $python$
     if "ai.version" not in GD:
@@ -451,12 +567,76 @@ as $python$
         if GD["ai.version"] != "0.4.0":
             plpy.fatal("the pgai extension version has changed. start a new session")
     import ai.openai
+    import json
     client = ai.openai.make_client(plpy, _api_key, _base_url)
-    moderation = client.moderations.create(input=_input, model=_model)
+    # Prepare kwargs for the API call
+    kwargs = {
+        "model": _model,
+        "input": _input,
+    }
+
+    # Add extra parameters if provided
+    if _extra_headers is not None:
+        kwargs['extra_headers'] = json.loads(_extra_headers)
+    if _extra_query is not None:
+        kwargs['extra_query'] = json.loads(_extra_query)
+    if _extra_body is not None:
+        kwargs['extra_body'] = json.loads(_extra_body)
+
+    # Make the API call
+    moderation = client.moderations.create(**kwargs)
     return moderation.model_dump_json()
 $python$
 language plpython3u immutable parallel safe security invoker
 set search_path to pg_catalog, pg_temp
+;
+
+create or replace function ai.openai_moderate
+(   _input text[],
+    _api_key text default null,
+    _base_url text default null,
+    _model text default null,
+    _extra_headers jsonb default null,
+    _extra_query jsonb default null,
+    _extra_body jsonb default null
+) returns jsonb
+as $python$
+    if "ai.version" not in GD:
+        r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
+        python_lib_dir = r[0]["python_lib_dir"]
+        from pathlib import Path
+        python_lib_dir = Path(python_lib_dir).joinpath("0.4.0")
+        import site
+        site.addsitedir(str(python_lib_dir))
+        from ai import __version__ as ai_version
+        assert("0.4.0" == ai_version)
+        GD["ai.version"] = "0.4.0"
+    else:
+        if GD["ai.version"] != "0.4.0":
+            plpy.fatal("the pgai extension version has changed. start a new session")
+    import ai.openai
+    import json
+    client = ai.openai.make_client(plpy, _api_key, _base_url)
+    # Prepare kwargs for the API call
+    kwargs = {
+        "model": _model,
+        "input": _input,
+    }
+
+    # Add extra parameters if provided
+    if _extra_headers is not None:
+        kwargs['extra_headers'] = json.loads(_extra_headers)
+    if _extra_query is not None:
+        kwargs['extra_query'] = json.loads(_extra_query)
+    if _extra_body is not None:
+        kwargs['extra_body'] = json.loads(_extra_body)
+
+    # Make the API call
+    moderation = client.moderations.create(**kwargs)
+    return moderation.model_dump_json()
+$python$
+    language plpython3u immutable parallel safe security invoker
+                        set search_path to pg_catalog, pg_temp
 ;
 
 
