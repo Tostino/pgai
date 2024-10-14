@@ -1,9 +1,9 @@
 DROP DATABASE
 CREATE DATABASE
 CREATE EXTENSION
-                                                                                                   Objects in extension "ai"
-                                                                                                      Object description
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                                     Objects in extension "ai"
+                                                                                                                        Object description
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  function ai.anthropic_generate(text,jsonb,integer,text,text,double precision,integer,text,text,text[],double precision,jsonb,jsonb,integer,double precision)
  function ai.chunking_character_text_splitter(name,integer,integer,text,boolean)
  function ai.chunking_recursive_character_text_splitter(name,integer,integer,text[],boolean)
@@ -72,7 +72,7 @@ CREATE EXTENSION
  table ai.vectorizer
  table ai.vectorizer_errors
  view ai.vectorizer_status
-(69 rows)
+(68 rows)
 
                                                               Table "ai.migration"
        Column       |           Type           | Collation | Nullable |      Default      | Storage  | Compression | Stats target | Description 
