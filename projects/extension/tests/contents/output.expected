@@ -1,9 +1,6 @@
-DROP DATABASE
-CREATE DATABASE
-CREATE EXTENSION
-                                                                                                   Objects in extension "ai"
-                                                                                                      Object description                                                                                                       
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                                     Objects in extension "ai"
+                                                                                                                        Object description
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  function ai.anthropic_generate(text,jsonb,integer,text,text,double precision,integer,text,text,text[],double precision,jsonb,jsonb,integer,double precision)
  function ai.chunking_character_text_splitter(name,integer,integer,text,boolean)
  function ai.chunking_recursive_character_text_splitter(name,integer,integer,text[],boolean)
@@ -32,14 +29,15 @@ CREATE EXTENSION
  function ai.ollama_generate(text,text,text,bytea[],double precision,jsonb,text,text,integer[])
  function ai.ollama_list_models(text)
  function ai.ollama_ps(text)
+ function ai.openai_chat_complete(jsonb,text,text,text,double precision,jsonb,boolean,integer,integer,integer,integer,double precision,jsonb,integer,text,boolean,double precision,double precision,jsonb,jsonb,text,jsonb,text,boolean,boolean,jsonb,jsonb,jsonb)
  function ai.openai_chat_complete_simple(text,text)
- function ai.openai_chat_complete(text,jsonb,text,text,double precision,jsonb,boolean,integer,integer,integer,double precision,jsonb,integer,text,double precision,double precision,jsonb,jsonb,text)
  function ai.openai_detokenize(text,integer[])
- function ai.openai_embed(text,integer[],text,text,integer,text)
- function ai.openai_embed(text,text,text,text,integer,text)
- function ai.openai_embed(text,text[],text,text,integer,text)
- function ai.openai_list_models(text,text)
- function ai.openai_moderate(text,text,text,text)
+ function ai.openai_embed(text,integer[],text,text,text,integer,text,jsonb,jsonb,jsonb)
+ function ai.openai_embed(text,text,text,text,text,integer,text,jsonb,jsonb,jsonb)
+ function ai.openai_embed(text[],text,text,text,text,integer,text,jsonb,jsonb,jsonb)
+ function ai.openai_list_models(text,text,jsonb,jsonb,jsonb)
+ function ai.openai_moderate(text,text,text,text,jsonb,jsonb,jsonb)
+ function ai.openai_moderate(text[],text,text,text,jsonb,jsonb,jsonb)
  function ai.openai_tokenize(text,text)
  function ai.processing_default(integer,integer)
  function ai.scheduling_none()
@@ -71,7 +69,7 @@ CREATE EXTENSION
  table ai.vectorizer
  table ai.vectorizer_errors
  view ai.vectorizer_status
-(67 rows)
+(69 rows)
 
                                                               Table "ai.migration"
        Column       |           Type           | Collation | Nullable |      Default      | Storage  | Compression | Stats target | Description 
