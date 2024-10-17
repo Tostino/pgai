@@ -492,7 +492,7 @@ as $python$
         plpy.error("Streaming is not supported in this implementation")
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url)
+    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
 
     # Prepare kwargs for the API call
     kwargs = ai.openai.prepare_kwargs({
@@ -502,7 +502,8 @@ as $python$
         "logit_bias": ai.openai.process_json_input(_logit_bias),
         "logprobs": _logprobs,
         "top_logprobs": _top_logprobs,
-        "max_completion_tokens": _max_completion_tokens or _max_tokens,
+        "max_tokens": _max_tokens,
+        "max_completion_tokens": _max_completion_tokens,
         "n": _n,
         "presence_penalty": _presence_penalty,
         "response_format": ai.openai.process_json_input(_response_format),
