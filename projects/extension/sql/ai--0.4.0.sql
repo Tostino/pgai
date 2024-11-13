@@ -174,6 +174,80 @@ set search_path to pg_catalog, pg_temp
 ;
 
 -------------------------------------------------------------------------------
+-- openai_client_create
+-- create the client and store it in the global dictionary for the session
+CREATE OR REPLACE FUNCTION ai.openai_client_create(
+    _api_key text DEFAULT NULL,
+    _organization text DEFAULT NULL,
+    _base_url text DEFAULT NULL,
+    _timeout float8 DEFAULT NULL,
+    _max_retries int DEFAULT NULL,
+    _default_headers jsonb DEFAULT NULL,
+    _default_query jsonb DEFAULT NULL,
+    _http_client jsonb DEFAULT NULL,
+    _strict_response_validation boolean DEFAULT NULL
+) RETURNS void AS $python$
+    if "ai.version" not in GD:
+        r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
+        python_lib_dir = r[0]["python_lib_dir"]
+        from pathlib import Path
+        python_lib_dir = Path(python_lib_dir).joinpath("0.4.0")
+        import site
+        site.addsitedir(str(python_lib_dir))
+        from ai import __version__ as ai_version
+        assert("0.4.0" == ai_version)
+        GD["ai.version"] = "0.4.0"
+    else:
+        if GD["ai.version"] != "0.4.0":
+            plpy.fatal("the pgai extension version has changed. start a new session")
+    import ai.openai
+
+    if 'openai_client' not in GD:
+        GD['openai_client'] = {}
+
+    new_config = ai.openai.prepare_kwargs({
+        'api_key': _api_key,
+        'organization': _organization,
+        'base_url': _base_url,
+        'timeout': _timeout,
+        'max_retries': _max_retries,
+        'default_headers': ai.openai.process_json_input(_default_headers),
+        'default_query': ai.openai.process_json_input(_default_query),
+        'http_client': ai.openai.process_json_input(_http_client),
+        '_strict_response_validation': _strict_response_validation
+    })
+
+    if 'config' not in GD['openai_client'] or ai.openai.client_config_changed(GD['openai_client']['config'], new_config):
+        client = ai.openai.make_async_client(plpy, **new_config)
+        GD['openai_client'] = {
+            'client': client,
+            'config': new_config
+        }
+
+$python$ LANGUAGE plpython3u VOLATILE SECURITY DEFINER PARALLEL UNSAFE;
+
+-------------------------------------------------------------------------------
+-- openai_client_destroy
+-- remove the client object stored in the global dictionary for the session
+CREATE OR REPLACE FUNCTION ai.openai_client_destroy() RETURNS void AS $python$
+    if "ai.version" not in GD:
+        r = plpy.execute("select coalesce(pg_catalog.current_setting('ai.python_lib_dir', true), '/usr/local/lib/pgai') as python_lib_dir")
+        python_lib_dir = r[0]["python_lib_dir"]
+        from pathlib import Path
+        python_lib_dir = Path(python_lib_dir).joinpath("0.4.0")
+        import site
+        site.addsitedir(str(python_lib_dir))
+        from ai import __version__ as ai_version
+        assert("0.4.0" == ai_version)
+        GD["ai.version"] = "0.4.0"
+    else:
+        if GD["ai.version"] != "0.4.0":
+            plpy.fatal("the pgai extension version has changed. start a new session")
+    if 'openai_client' in GD:
+        del GD['openai_client']
+$python$ LANGUAGE plpython3u VOLATILE SECURITY DEFINER PARALLEL UNSAFE;
+
+-------------------------------------------------------------------------------
 -- openai_list_models
 -- list models supported on the openai platform
 -- https://platform.openai.com/docs/api-reference/models/list
@@ -203,7 +277,7 @@ as $python$
     import json
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
+    client = ai.openai.get_or_create_client(plpy, GD, _api_key, _base_url)
 
     # Prepare kwargs for the API call
     kwargs = {}
@@ -216,15 +290,15 @@ as $python$
         kwargs['extra_body'] = json.loads(_extra_body)
 
     async def async_openai_call(client, kwargs):
-        response = await client.models.list(**kwargs)
-        return response.model_dump_json()
+        response = await client.models.with_raw_response.list(**kwargs)
+        return response.text
 
     # Execute the API call with cancellation support
     result = ai.openai.execute_with_cancellation(plpy, client, async_openai_call, **kwargs)
 
     return result
 $python$
-    language plpython3u volatile parallel safe security invoker
+    language plpython3u volatile parallel unsafe security invoker
                         set search_path to pg_catalog, pg_temp
 ;
 
@@ -263,7 +337,7 @@ as $python$
     import json
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
+    client = ai.openai.get_or_create_client(plpy, GD, _api_key, _base_url)
 
     # Prepare kwargs for the API call
     kwargs = ai.openai.prepare_kwargs({
@@ -283,15 +357,15 @@ as $python$
         kwargs['extra_body'] = json.loads(_extra_body)
 
     async def async_openai_call(client, kwargs):
-        response = await client.embeddings.create(**kwargs)
-        return response.model_dump_json()
+        response = await client.embeddings.with_raw_response.create(**kwargs)
+        return response.text
 
     # Execute the API call with cancellation support
     result = ai.openai.execute_with_cancellation(plpy, client, async_openai_call, **kwargs)
 
     return result
 $python$
-    language plpython3u immutable parallel safe security invoker
+    language plpython3u volatile parallel unsafe security invoker
                         set search_path to pg_catalog, pg_temp
 ;
 
@@ -330,7 +404,7 @@ as $python$
     import json
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
+    client = ai.openai.get_or_create_client(plpy, GD, _api_key, _base_url)
 
     # Prepare kwargs for the API call
     kwargs = ai.openai.prepare_kwargs({
@@ -350,15 +424,15 @@ as $python$
         kwargs['extra_body'] = json.loads(_extra_body)
 
     async def async_openai_call(client, kwargs):
-        response = await client.embeddings.create(**kwargs)
-        return response.model_dump_json()
+        response = await client.embeddings.with_raw_response.create(**kwargs)
+        return response.text
 
     # Execute the API call with cancellation support
     result = ai.openai.execute_with_cancellation(plpy, client, async_openai_call, **kwargs)
 
     return result
 $python$
-    language plpython3u immutable parallel safe security invoker
+    language plpython3u volatile parallel unsafe security invoker
                         set search_path to pg_catalog, pg_temp
 ;
 
@@ -397,7 +471,7 @@ as $python$
     import json
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
+    client = ai.openai.get_or_create_client(plpy, GD, _api_key, _base_url)
 
     # Prepare kwargs for the API call
     kwargs = ai.openai.prepare_kwargs({
@@ -417,15 +491,15 @@ as $python$
         kwargs['extra_body'] = json.loads(_extra_body)
 
     async def async_openai_call(client, kwargs):
-        response = await client.embeddings.create(**kwargs)
-        return response.model_dump_json()
+        response = await client.embeddings.with_raw_response.create(**kwargs)
+        return response.text
 
     # Execute the API call with cancellation support
     result = ai.openai.execute_with_cancellation(plpy, client, async_openai_call, **kwargs)
 
     return result
 $python$
-    language plpython3u immutable parallel safe security invoker
+    language plpython3u volatile parallel unsafe security invoker
                         set search_path to pg_catalog, pg_temp
 ;
 
@@ -433,7 +507,7 @@ $python$
 -- openai_chat_complete
 -- text generation / chat completion
 -- https://platform.openai.com/docs/api-reference/chat/create
-create or replace function ai.openai_chat_complete
+CREATE OR REPLACE FUNCTION ai.openai_chat_complete
 ( _messages jsonb
 , _model text
 , _api_key text default null
@@ -492,7 +566,7 @@ as $python$
         plpy.error("Streaming is not supported in this implementation")
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
+    client = ai.openai.get_or_create_client(plpy, GD, _api_key, _base_url)
 
     # Prepare kwargs for the API call
     kwargs = ai.openai.prepare_kwargs({
@@ -529,18 +603,17 @@ as $python$
     if _extra_body is not None:
         kwargs['extra_body'] = json.loads(_extra_body)
 
-    async def async_openai_call(client, kwargs) -> json:
-        response = await client.chat.completions.create(**kwargs)
-        return response.model_dump_json()
+    async def async_openai_call(client, kwargs):
+        response = await client.chat.completions.with_raw_response.create(**kwargs)
+        return response.text
 
     # Execute the API call with cancellation support
     result = ai.openai.execute_with_cancellation(plpy, client, async_openai_call, **kwargs)
 
     return result
-
 $python$
-    language plpython3u volatile parallel safe security invoker
-                        set search_path to pg_catalog, pg_temp
+    LANGUAGE plpython3u volatile parallel unsafe security invoker
+                        SET search_path TO pg_catalog, pg_temp
 ;
 
 ------------------------------------------------------------------------------------
@@ -565,7 +638,7 @@ begin
         operator(pg_catalog.->)'message'
         operator(pg_catalog.->>)'content';
 end;
-$$ language plpgsql volatile parallel safe security invoker
+$$ language plpgsql volatile parallel unsafe security invoker
 set search_path to pg_catalog, pg_temp
 ;
 
@@ -601,7 +674,7 @@ as $python$
     import json
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
+    client = ai.openai.get_or_create_client(plpy, GD, _api_key, _base_url)
 
     # Prepare kwargs for the API call
     kwargs = ai.openai.prepare_kwargs({
@@ -618,15 +691,15 @@ as $python$
         kwargs['extra_body'] = json.loads(_extra_body)
 
     async def async_openai_call(client, kwargs):
-        response = await client.moderations.create(**kwargs)
-        return response.model_dump_json()
+        response = await client.moderations.with_raw_response.create(**kwargs)
+        return response.text
 
     # Execute the API call with cancellation support
     result = ai.openai.execute_with_cancellation(plpy, client, async_openai_call, **kwargs)
 
     return result
 $python$
-    language plpython3u immutable parallel safe security invoker
+    language plpython3u volatile parallel unsafe security invoker
                         set search_path to pg_catalog, pg_temp
 ;
 
@@ -658,7 +731,7 @@ as $python$
     import json
 
     # Create async client
-    client = ai.openai.make_async_client(plpy, _api_key, _base_url, _timeout)
+    client = ai.openai.get_or_create_client(plpy, GD, _api_key, _base_url)
 
     # Prepare kwargs for the API call
     kwargs = ai.openai.prepare_kwargs({
@@ -675,15 +748,15 @@ as $python$
         kwargs['extra_body'] = json.loads(_extra_body)
 
     async def async_openai_call(client, kwargs):
-        response = await client.moderations.create(**kwargs)
-        return response.model_dump_json()
+        response = await client.moderations.with_raw_response.create(**kwargs)
+        return response.text
 
     # Execute the API call with cancellation support
     result = ai.openai.execute_with_cancellation(plpy, client, async_openai_call, **kwargs)
 
     return result
 $python$
-    language plpython3u immutable parallel safe security invoker
+    language plpython3u volatile parallel unsafe security invoker
                         set search_path to pg_catalog, pg_temp
 ;
 
